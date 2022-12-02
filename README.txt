@@ -1,8 +1,11 @@
-use method:
+install method:
 ./install.sh
 
-disuse method:
+stop method:
+./stop.sh
+
+uninstall method:
 ./uninstall.sh
 
 generated data clean:
-./clean.sh
+./clean.sh  #run before re-detection
