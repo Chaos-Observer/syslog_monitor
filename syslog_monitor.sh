@@ -103,10 +103,10 @@ do
 	
 	ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
 	if [ -z ${ip_detector} ]; then
-		ifdown ${ETH_NAME}
+		sudo ifconfig ${ETH_NAME} down
 		sleep 1
-		ifup ${ETH_NAME}
-		echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}" >> ${record_dir}/${ETH_NAME}_loss_ip_lists
+		sudo ifconfig ${ETH_NAME} up
+		echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}">> ${record_dir}/${ETH_NAME}_loss_ip_lists
 	fi
 
 	for((i=1;i<=$service_n;i++));

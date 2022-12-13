@@ -5,15 +5,11 @@ sudo systemctl stop user_monitor.service
 sleep 1
 sync
 
-echo "clean dir /home/syslog_monitor generated data..."
+echo "clean dir /home/syslog_monitor/record generated data..."
 rm -r /home/syslog_monitor/record
-echo "ls after clean:"
-ls /home/sys_run-log_monitor
 echo "------------------------------------------------------"
-echo "clean current dir generated data..."
-rm -r ./record
 echo "ls after clean:"
-ls ./
+ls /home/syslog_monitor
 
 sync
 sleep 1
