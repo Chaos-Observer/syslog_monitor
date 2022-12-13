@@ -2,6 +2,7 @@
 
 #before use,exec 'sudo chown -R ${USER} /home/syslog_monitor'in unprivileged user
 SLEEP_TIME="10" # unit is second
+ETH_NAME="eth0"
 
 service_1="iotmanager"
 service_2="mediastreaming"
@@ -25,6 +26,7 @@ sys_mem_free=$(awk '/MemFree/{free1=$2}/^Cached/{cache1=$2}/Buffers/{buffers1=$2
 loadaverge=$(top -n 1 -b | grep "load average" | awk '{print $12 $13 $14}')
 disk_used=$(df -h | grep -v "Filesystem" | awk '{print $1 " " $5}')
 SERVER_NAME="iot.wenjingtech.com"
+REF_WEBSITE="www.baidu.com"
 
 if [ ! -d "${record_dir}" ]; then
 	mkdir ${record_dir}
@@ -99,6 +101,14 @@ do
 	CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 	echo "$CURRENT_DATE :: exec monitor" >> $monitor_doc
 	
+	ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
+	if [ -z ${ip_detector} ]; then
+		ifdown ${ETH_NAME}
+		sleep 1
+		ifup ${ETH_NAME}
+		echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}" >> ${record_dir}/${ETH_NAME}_loss_ip_lists
+	fi
+
 	for((i=1;i<=$service_n;i++));
 	do
 		SERVICE_NAME=$(eval echo '${service_'"${i}"'}')
@@ -107,6 +117,7 @@ do
 		p=$(systemctl status ${SERVICE_NAME}.service | grep -E PID | cut -c -24 | tr -cd 0-9)
 		r=$(cat ${record_dir}/${SERVICE_NAME}_pid)
 		x=$(cat ${record_dir}/${SERVICE_NAME}_restart_times)
+		
 		# echo "p is $p .r is $r. x is $x"
 		if [[ "${p}" == "${r}" ]]; then
 			echo "${p}" > ${record_dir}/${SERVICE_NAME}_pid
@@ -124,7 +135,9 @@ do
 	# echo "$n"
 	if [[ "3" -eq "${n}" ]]; then
 		n=0
+		CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 		n_strings=$(ping -c 4 ${SERVER_NAME})
+		ref_strings=$(ping -c 2 ${REF_WEBSITE})
 		if [[ ! "0%" == "$(echo "${n_strings}" | grep "packet" | cut -c 36-37)" ]];then
 			if [[ -n "$(echo "${n_strings}" | grep "Out")" ]];then
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN TIMEOUT: $(echo "${n_strings}" | grep "Out") " >> ${record_dir}/network_record.txt
@@ -136,6 +149,10 @@ do
 		# echo "ping false."
 		# else
 		# echo "ping ok."
+		fi
+		if [[ ! "0%" == "$(echo "${ref_strings}" | grep "packet" | cut -c 36-37)" ]];then
+			echo "time : $CURRENT_DATE ; PING REFERENCE WEBSITE RETURN LOSS: $(echo "${ref_strings}" | grep "packet") " >> ${record_dir}/ref_network_record.txt
+
 		fi
 	fi
 	sync  #sync write data
