@@ -3,6 +3,8 @@
 #before use,exec 'sudo chown -R ${USER} /home/syslog_monitor'in unprivileged user
 SLEEP_TIME="10" # unit is second
 ETH_NAME="eth0"
+daily_exec="/edge/reboot.sh"
+Version="1.0.1"
 
 service_1="iotmanager"
 service_2="mediastreaming"
@@ -50,7 +52,18 @@ fi
 	echo -e  "CPU loadaverge:"  $loadaverge >> $monitor_doc
 	echo -e  "Disk used:"  $disk_used >> $monitor_doc
 
+crontab_file=$(cat /etc/crontab | grep ${daily_exec})
+if [ -z ${crontab_file} ]; then
+	sudo echo "30 1 * * * root ${daily_exec}" >> /etc/crontab
+	sync
+	crontab /etc/crontab
+fi
 
+crontab_ret=$(sudo crontab -l | grep ${daily_exec})
+if [ -z ${crontab_ret} ]; then
+	sudo crontab /etc/crontab
+fi
+echo "${crontab_ret}" > ${record_dir}/crontab_list
 
 if [ -f "$RB_TIMES" ]
 then

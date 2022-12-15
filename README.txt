@@ -9,3 +9,6 @@ uninstall method:
 
 generated data clean:
 ./clean.sh  #run before re-detection
+
+update method:
+./update.sh
