@@ -4,7 +4,9 @@
 SLEEP_TIME="10" # unit is second
 ETH_NAME="eth0"
 daily_exec="/edge/reboot.sh"
-Version="1.0.1"
+hour_random=$(echo $RANDOM)
+minute_random=$(echo $RANDOM)
+Version="1.0.2"
 
 service_1="iotmanager"
 service_2="mediastreaming"
@@ -52,11 +54,22 @@ fi
 	echo -e  "CPU loadaverge:"  $loadaverge >> $monitor_doc
 	echo -e  "Disk used:"  $disk_used >> $monitor_doc
 
+
+hour_calc=$(($hour_random*5/32768))
+minute_calc=$(($minute_random*60/32768))
+
 crontab_file=$(cat /etc/crontab | grep ${daily_exec})
 if [ -z ${crontab_file} ]; then
-	sudo echo "30 1 * * * root ${daily_exec}" >> /etc/crontab
+	sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
 	sync
 	crontab /etc/crontab
+	systemctl start cron
+else
+	sed -i '$d' /etc/crontab
+	sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
+	sync
+	crontab /etc/crontab
+	systemctl start cron
 fi
 
 crontab_ret=$(sudo crontab -l | grep ${daily_exec})
