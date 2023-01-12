@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
 #before use,exec 'sudo chown -R ${USER} /home/syslog_monitor'in unprivileged user
+sleep 3 #first run will sleep 3 seconds
+
 SLEEP_TIME="10" # unit is second
 ETH_NAME="eth0"
 daily_exec="/edge/reboot.sh"
 hour_random=$(echo $RANDOM)
 minute_random=$(echo $RANDOM)
-Version="1.0.2"
+Version="1.0.3"
 
 service_1="iotmanager"
 service_2="mediastreaming"
@@ -59,7 +61,7 @@ hour_calc=$(($hour_random*5/32768))
 minute_calc=$(($minute_random*60/32768))
 
 crontab_file=$(cat /etc/crontab | grep ${daily_exec})
-if [ -z ${crontab_file} ]; then
+if [ -z "${crontab_file}" ]; then
 	sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
 	sync
 	crontab /etc/crontab
@@ -73,10 +75,10 @@ else
 fi
 
 crontab_ret=$(sudo crontab -l | grep ${daily_exec})
-if [ -z ${crontab_ret} ]; then
+if [ -z "${crontab_ret}" ]; then
 	sudo crontab /etc/crontab
 fi
-echo "${crontab_ret}" > ${record_dir}/crontab_list
+echo "time : ${EXEC_DATE} ; cron config: ${crontab_ret}" >> ${record_dir}/crontab_list
 
 if [ -f "$RB_TIMES" ]
 then
@@ -123,17 +125,12 @@ declare -i n=0
 
 while [ "1" = "1" ]
 do
+	sleep $SLEEP_TIME
+
 	echo "-------------monitor--------------" >> $monitor_doc
 	CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 	echo "$CURRENT_DATE :: exec monitor" >> $monitor_doc
 	
-	ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
-	if [ -z ${ip_detector} ]; then
-		sudo ifconfig ${ETH_NAME} down
-		sleep 1
-		sudo ifconfig ${ETH_NAME} up
-		echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}">> ${record_dir}/${ETH_NAME}_loss_ip_lists
-	fi
 
 	for((i=1;i<=$service_n;i++));
 	do
@@ -157,18 +154,35 @@ do
 			echo "$x" > ${record_dir}/${SERVICE_NAME}_restart_times
 		fi
 	done
+
 	n=$(($n+1))
 	# echo "$n"
 	if [[ "3" -eq "${n}" ]]; then
 		n=0
 		CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
+
+		ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
+		if [ -z "${ip_detector}" ]; then
+			sudo ifconfig ${ETH_NAME} down
+			sleep 1
+			sudo ifconfig ${ETH_NAME} up
+			echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}">> ${record_dir}/${ETH_NAME}_loss_ip_lists
+		fi
+
 		n_strings=$(ping -c 4 ${SERVER_NAME})
 		ref_strings=$(ping -c 2 ${REF_WEBSITE})
 		if [[ ! "0%" == "$(echo "${n_strings}" | grep "packet" | cut -c 36-37)" ]];then
 			if [[ -n "$(echo "${n_strings}" | grep "Out")" ]];then
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN TIMEOUT: $(echo "${n_strings}" | grep "Out") " >> ${record_dir}/network_record.txt
-			elif  [[ -n "$(echo "${n_strings}" | grep "Unreachable")" ]];then
-				echo "time : $CURRENT_DATE ; PING SERVER RETURN Unreachable: $(echo "${n_strings}" | grep "Unreachable") " >> ${record_dir}/network_record.txt
+			elif  [[ -n "$(echo "${n_strings}" | grep -E "Unreachable|unreachable")" ]];then
+				echo "time : $CURRENT_DATE ; PING SERVER RETURN unreachable: $(echo "${n_strings}" | grep -E "Unreachable|unreachable") " >> ${record_dir}/network_record.txt
+				systemctl restart networking
+				sleep 1
+				ret = $(systemctl status networking | grep "Active" | cut -c 12-17)
+				if [[ "failed" == "${ret}" ]]; then
+					sync
+					$(${daily_exec})
+				fi
 			else
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN LOSS: $(echo "${n_strings}" | grep "packet") " >> ${record_dir}/network_record.txt
 			fi
@@ -182,5 +196,5 @@ do
 		fi
 	fi
 	sync  #sync write data
-	sleep $SLEEP_TIME
+
 done
