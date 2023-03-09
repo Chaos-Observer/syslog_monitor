@@ -3,12 +3,13 @@
 #before use,exec 'sudo chown -R ${USER} /home/syslog_monitor'in unprivileged user
 sleep 3 #first run will sleep 3 seconds
 
-SLEEP_TIME="10" # unit is second
+SLEEP_TIME="15" # unit is second
 ETH_NAME="eth0"
 daily_exec="/edge/reboot.sh"
 hour_random=$(echo $RANDOM)
+Version="1.0.4"
 minute_random=$(echo $RANDOM)
-Version="1.0.3"
+
 
 service_1="iotmanager"
 service_2="mediastreaming"
@@ -59,26 +60,6 @@ fi
 
 hour_calc=$(($hour_random*5/32768))
 minute_calc=$(($minute_random*60/32768))
-
-crontab_file=$(cat /etc/crontab | grep ${daily_exec})
-if [ -z "${crontab_file}" ]; then
-	sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
-	sync
-	crontab /etc/crontab
-	systemctl start cron
-else
-	sed -i '$d' /etc/crontab
-	sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
-	sync
-	crontab /etc/crontab
-	systemctl start cron
-fi
-
-crontab_ret=$(sudo crontab -l | grep ${daily_exec})
-if [ -z "${crontab_ret}" ]; then
-	sudo crontab /etc/crontab
-fi
-echo "time : ${EXEC_DATE} ; cron config: ${crontab_ret}" >> ${record_dir}/crontab_list
 
 if [ -f "$RB_TIMES" ]
 then
@@ -131,6 +112,30 @@ do
 	CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 	echo "$CURRENT_DATE :: exec monitor" >> $monitor_doc
 	
+	if [ "06:30" == "$(date "+%H:%M")" ] && [ ! "06" == "$EXEC_DATE" ]
+	then
+
+		crontab_file=$(cat /etc/crontab | grep ${daily_exec})
+		if [ -z "${crontab_file}" ]; then
+			sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
+			sync
+			crontab /etc/crontab
+			systemctl start cron
+		else
+			sed -i '$d' /etc/crontab
+			sudo echo "${minute_calc} ${hour_calc} * * * root ${daily_exec}" >> /etc/crontab
+			sync
+			crontab /etc/crontab
+			systemctl start cron
+		fi
+
+		crontab_ret=$(sudo crontab -l | grep ${daily_exec})
+		if [ -z "${crontab_ret}" ]; then
+			sudo crontab /etc/crontab
+		fi
+		echo "time : ${EXEC_DATE} ; cron config: ${crontab_ret}" >> ${record_dir}/crontab_list
+		EXEC_DATE="06"
+	fi
 
 	for((i=1;i<=$service_n;i++));
 	do
@@ -157,14 +162,14 @@ do
 
 	n=$(($n+1))
 	# echo "$n"
-	if [[ "3" -eq "${n}" ]]; then
+	if [[ "8" -eq "${n}" ]]; then
 		n=0
 		CURRENT_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 
 		ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
 		if [ -z "${ip_detector}" ]; then
 			sudo ifconfig ${ETH_NAME} down
-			sleep 1
+			sleep 2
 			sudo ifconfig ${ETH_NAME} up
 			echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}">> ${record_dir}/${ETH_NAME}_loss_ip_lists
 		fi
@@ -177,7 +182,7 @@ do
 			elif  [[ -n "$(echo "${n_strings}" | grep -E "Unreachable|unreachable")" ]];then
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN unreachable: $(echo "${n_strings}" | grep -E "Unreachable|unreachable") " >> ${record_dir}/network_record.txt
 				systemctl restart networking
-				sleep 1
+				sleep 2
 				ret = $(systemctl status networking | grep "Active" | cut -c 12-17)
 				if [[ "failed" == "${ret}" ]]; then
 					sync
