@@ -7,7 +7,7 @@ SLEEP_TIME="15" # unit is second
 ETH_NAME="eth0"
 daily_exec="/edge/reboot.sh"
 hour_random=$(echo $RANDOM)
-Version="1.0.4"
+Version="1.0.5"
 minute_random=$(echo $RANDOM)
 
 
@@ -41,6 +41,10 @@ fi
 
 if [ -f "$monitor_doc" ]
 then
+	if [[ "100000000" -lt "$(stat -c "%s" $monitor_doc)" ]]; then
+		rm $monitor_doc
+		touch $monitor_doc
+	fi
 	echo "------------------------restart-------------------------" >> $monitor_doc
 	echo "re-exec time $EXEC_DATE ::Record!" >> $monitor_doc
 else
@@ -102,6 +106,9 @@ done
 declare -i p=0
 declare -i r=0
 declare -i n=0
+declare -i u=0
+
+echo "$(date "+%H")" > ${record_dir}/hour
 
 
 while [ "1" = "1" ]
@@ -169,7 +176,7 @@ do
 		ip_detector=$(ifconfig ${ETH_NAME} | grep inet | grep -v inet6 | cut -c 14-28)
 		if [ -z "${ip_detector}" ]; then
 			sudo ifconfig ${ETH_NAME} down
-			sleep 2
+			sleep 1
 			sudo ifconfig ${ETH_NAME} up
 			echo "time : $CURRENT_DATE ; ip can't obtain, return ip : ${ip_detector}">> ${record_dir}/${ETH_NAME}_loss_ip_lists
 		fi
@@ -183,8 +190,17 @@ do
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN unreachable: $(echo "${n_strings}" | grep -E "Unreachable|unreachable") " >> ${record_dir}/network_record.txt
 				systemctl restart networking
 				sleep 2
+				if [[ "$(date "+%H")" != "$(cat ${record_dir}/hour)" ]]; then
+					u=0
+					echo "$(date "+%H")" > ${record_dir}/hour
+				fi
+				u=$(($u+1)) #continue but no intermittent
+				echo "$CURRENT_DATE: $u" >> ${record_dir}/ur_count
 				ret = $(systemctl status networking | grep "Active" | cut -c 12-17)
 				if [[ "failed" == "${ret}" ]]; then
+					sync
+					$(${daily_exec})
+				elif [[ "20" -le "${u}" ]]; then
 					sync
 					$(${daily_exec})
 				fi
