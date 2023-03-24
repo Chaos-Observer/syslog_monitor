@@ -188,7 +188,10 @@ do
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN TIMEOUT: $(echo "${n_strings}" | grep "Out") " >> ${record_dir}/network_record.txt
 			elif  [[ -n "$(echo "${n_strings}" | grep -E "Unreachable|unreachable")" ]];then
 				echo "time : $CURRENT_DATE ; PING SERVER RETURN unreachable: $(echo "${n_strings}" | grep -E "Unreachable|unreachable") " >> ${record_dir}/network_record.txt
-				systemctl restart networking
+				sudo ifconfig ${ETH_NAME} down
+				sudo ifconfig ${ETH_NAME} up
+				sudo systemctl stop NetworkManager
+				sudo systemctl restart networking
 				sleep 2
 				if [[ "$(date "+%H")" != "$(cat ${record_dir}/hour)" ]]; then
 					u=0
@@ -196,11 +199,11 @@ do
 				fi
 				u=$(($u+1)) #continue but no intermittent
 				echo "$CURRENT_DATE: $u" >> ${record_dir}/ur_count
-				ret = $(systemctl status networking | grep "Active" | cut -c 12-17)
+				ret = $(systemctl status networking | grep "Active" | awk -F" " '{print $2}')
 				if [[ "failed" == "${ret}" ]]; then
 					sync
 					$(${daily_exec})
-				elif [[ "20" -le "${u}" ]]; then
+				elif [[ "10" -le "${u}" ]]; then
 					sync
 					$(${daily_exec})
 				fi
@@ -211,8 +214,8 @@ do
 		# else
 		# echo "ping ok."
 		fi
-		if [[ ! "0%" == "$(echo "${ref_strings}" | grep "packet" | cut -c 36-37)" ]];then
-			echo "time : $CURRENT_DATE ; PING REFERENCE WEBSITE RETURN LOSS: $(echo "${ref_strings}" | grep "packet") " >> ${record_dir}/ref_network_record.txt
+		if [[ ! "0%" == "$(echo "${ref_strings}" | grep "packet" | awk -F" " '{print $6}')" ]];then
+			echo "time : $CURRENT_DATE ; PING REFERENCE WEBSITE RETURN: $ref_strings " >> ${record_dir}/ref_network_record.txt
 
 		fi
 	fi
